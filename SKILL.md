@@ -118,6 +118,26 @@ directory ships as-is. After building: verify every referenced path exists
   for pages whose *photo/screenshot assets* you need; for text-only extra
   slides, `webfetch` the URL (~10s). Run capture in the background (`nohup … &`)
   while webfetching the remaining look-ahead pages in parallel.
+- **Multi-post unifying decks:** capture each URL to its own dir
+  (`capture-<slug>`, run both in background in parallel). To build ONE deck,
+  keep the richer capture as `capture/` (the deck's relative-path root), copy
+  only the needed assets from the second into `capture/assets/`, then delete
+  the second capture dir. One narrative arc beats two mini-decks: bridge the
+  sources with kicker labels ("HKT's role · part one/two") and cite every
+  source post on the title AND closer slides (chips + a sources footer).
+- **`og-image.jpg` is a hero asset:** the social card is often a pre-branded
+  ~1200×627 composition — usually the best title-slide image in the capture.
+  If it has baked-in text/logo bars, crop them out with `object-fit:cover` +
+  `object-position` + `transform:scale(~1.34)` with a `transform-origin` that
+  pushes the text off-frame; edge fragments need more zoom than expected.
+  Verify by screenshot and expect 2–3 iterations.
+- **Link gate vs relative hrefs:** captures store hrefs relative
+  (`/contact-us`), so absolute URLs in deck.html will show REVIEW. Strip the
+  domain and grep the path form, and grep the right `page.html` when the deck
+  merges two captures. User-supplied source URLs need no verification.
+- **Visual QA every slide headlessly** before delivering — layout bugs (clipped
+  images, dead space, over-bold watermarks) never show up in code review (see
+  deck-template.md for the no-playwright Chrome screenshot loop).
 
 ## Gate
 

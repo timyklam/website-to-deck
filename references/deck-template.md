@@ -138,3 +138,27 @@ for f in <every path referenced in deck.html>; do [ -f "$f" ] || echo "MISSING $
 for u in <every href in deck.html>; do rg -qF "$u" capture/extracted/page.html && echo "OK $u" || echo "REVIEW $u"; done
 ```
 Then `open deck.html` and click through all slides once.
+
+### Visual QA loop (no playwright needed)
+
+Screenshot EVERY slide headlessly and read the shots before delivering —
+clipped hero crops, dead space, and over-bold watermarks never show in code
+review. Get the system Chrome path from `npx hyperframes doctor`.
+
+```bash
+# 1. hash-jumper in a TEMP copy (inject after show(0);):
+sed 's|  show(0);|  show(0); const h=parseInt(location.hash.slice(1)); if(h>0) show(h-1);|' \
+  deck.html > deck-shot-tmp.html
+# 2. run FROM the project dir — relative asset paths break otherwise
+mkdir -p /tmp/deck-shots
+for n in $(seq 1 10); do
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu \
+    --screenshot=/tmp/deck-shots/s$n.png --window-size=1312,740 --hide-scrollbars \
+    --virtual-time-budget=3000 "file://$PWD/deck-shot-tmp.html#$n" >/dev/null 2>&1
+done
+rm deck-shot-tmp.html
+```
+
+Read every shot; fix layouts; **re-render only the changed slides** after each
+edit round (2–3 iterations is normal). `--virtual-time-budget=3000` lets the
+staggered entrance animations settle.

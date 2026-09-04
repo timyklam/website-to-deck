@@ -43,6 +43,12 @@ Lines like `[h1] Heading`, `[p] Body`, `[a] Link`, `[span] Item`.
   attributes → recolorable with CSS `filter: brightness(0) invert(1)` on white).
 - Icon-only PNGs (e.g. `expert-led-*.png`) are small card icons — usable but often
   better replaced by inline SVG icons matching the deck's stroke style.
+- **SVGs don't render in an image read** — generate a PNG preview first to
+  verify a candidate is the real wordmark: `qlmanage -t -s 800 -o .
+  <file>.svg` (macOS) then read the emitted `<file>.svg.png`. Cross-check by
+  extracting the inline `<svg viewBox="…">` from `page.html` with a python
+  regex — if a captured `logo-<hash>.svg` matches the inline markup (same
+  size/path data), that's the brand mark.
 - **Missing assets:** if `assetUrls` in tokens.json references URLs not present in
   `assets/`, the capture dropped them (size-floor / cap-reached). Follow
   partner-logo-recovery.md to fetch from the source.
