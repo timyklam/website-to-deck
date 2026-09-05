@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Excel Anonymizer — Deterministic Mapping: Project Summary &amp; Learnings</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2129; --panel2: #212b36; --line: #2f3b47;
+    --text: #d8e0e8; --muted: #8b98a5; --accent: #4fc3f7; --good: #66bb6a;
+    --warn: #ffb74d; --bad: #ef5350; --key: #ffd54f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.65 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 3rem 1.5rem; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin-bottom: .4rem; }
+  h1 .hl { color: var(--accent); }
+  .sub { color: var(--muted); margin-bottom: 2.2rem; }
+  h2 { font-size: 1.15rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 2.4rem 0 1rem; border-bottom: 1px solid var(--line); padding-bottom: .5rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.2rem 1.4rem; margin-bottom: 1rem; }
+  .learn { border-left: 4px solid var(--key); }
+  .learn h3 { color: var(--key); font-size: 1.02rem; margin-bottom: .35rem; }
+  .learn p { color: var(--text); }
+  .learn .why { color: var(--muted); font-size: .92rem; margin-top: .4rem; }
+  .learn .why b { color: var(--warn); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: .8rem 0 1.4rem; font-size: .93rem; }
+  th, td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--good); font-weight: 600; }
+  code { background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: .1rem .4rem; font-size: .86em; color: #cde3f5; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.4rem; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; }
+  .stat .v { font-size: 1.7rem; font-weight: 700; color: var(--good); }
+  .stat .k { color: var(--muted); font-size: .85rem; }
+  .flow { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .6rem 0 1rem; font-size: .9rem; }
+  .flow .step { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: .35rem .7rem; }
+  .flow .arr { color: var(--muted); }
+  .warnbox { background: rgba(239, 83, 80, .08); border: 1px solid rgba(239, 83, 80, .4); border-radius: 10px; padding: 1rem 1.3rem; margin: 1rem 0; }
+  .warnbox b { color: var(--bad); }
+  ul { margin: .4rem 0 .6rem 1.3rem; }
+  li { margin-bottom: .3rem; }
+  .foot { color: var(--muted); font-size: .85rem; margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Excel Anonymizer — <span class="hl">Deterministic Mapping</span></h1>
+  <div class="sub">Patching Welding-Torch/Excel-Anonymizer for consistent, reusable fake data &nbsp;·&nbsp; shipped to <code>timyklam/Excel-Anonymizer</code> (private)</div>
+
+  <div class="grid">
+    <div class="stat"><div class="v">21/21</div><div class="k">tests passing</div></div>
+    <div class="stat"><div class="v">509/509</div><div class="k">PII cells anonymized per forced column</div></div>
+    <div class="stat"><div class="v">0</div><div class="k">consistency violations · leaks · collisions</div></div>
+    <div class="stat"><div class="v">~11s</div><div class="k">11,730-cell live run</div></div>
+  </div>
+
+  <h2>What was built</h2>
+  <div class="card">
+    <p>Upstream anonymized each cell independently with random Faker output — <code>"peter pan"</code> became a different name every occurrence and every run. The patch makes replacements <b>deterministic and reusable</b>: one original value → one fake value, forever.</p>
+    <div class="flow">
+      <span class="step">normalize cell</span><span class="arr">→</span>
+      <span class="step">lookup key in mapping.json</span><span class="arr">→</span>
+      <span class="step">hit? reuse : seed-fake &amp; store</span><span class="arr">→</span>
+      <span class="step">write back in-place (openpyxl)</span>
+    </div>
+    <p>Column fallback for <code>*name*</code> / <code>*tel*</code> headers; fixed 1:1 date remap; digit-shape-preserving numeric IDs; namespace bridging for phone/card/IDs; gitignored <code>mapping.json</code> doubles as the (secret) de-anonymization key.</p>
+  </div>
+
+  <h2>The learnings</h2>
+
+  <div class="card learn">
+    <h3>1 · "Random per cell" is the default of NLP anonymizers — determinism is an add-on you must design</h3>
+    <p>Presidio+Faker pipelines call the generator once per detection. Consistency required three deliberate pieces: a <b>memoized lookup</b> (original→fake within a run), a <b>persistent store</b> (across files/sessions), and a <b>seeded Faker</b> (reproducible new entries).</p>
+    <p class="why"><b>Why it matters:</b> analytics on anonymized data (join counts, deduplication, referential integrity) is only possible if identical inputs collapse to identical outputs.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>2 · The mapping key is everything — normalize before you memoize</h3>
+    <p><code>"Peter Pan"</code>, <code>"peter pan"</code>, <code>"PETER.PAN@EXAMPLE.COM"</code>, <code>"(555) 123-4567"</code> vs <code>5551234567</code> — naïve string keys would mint a different fake for each surface form. Keys are canonicalized (casefold, whitespace, digits-only) so all forms share one entry; dates normalize to ISO.</p>
+    <p class="why"><b>Why it matters:</b> case-insensitive keys were a deliberate choice — <code>"CYRUS FAN"</code> and <code>"Cyrus Fan"</code> <b>should</b> be the same person. But it also means "Peter Pan" vs "peter pan" cannot intentionally get different fakes. Know which equivalences you want.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>3 · Entity types leak into each other — bridge the namespaces or split identities</h3>
+    <p>The same digits arriving as text <code>"5551234567"</code> vs numeric <code>5551234567</code> initially landed in different namespaces (PHONE vs ID) and got two fakes. A bridge layer now resolves any digit string across PHONE/CARD/ID namespaces before minting a new fake.</p>
+    <p class="why"><b>Why it matters:</b> real spreadsheets store the same value in multiple types across columns and sheets; type-rigid mapping silently breaks row-level linkage.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>4 · NER models are built for prose, not spreadsheets — recall gaps are structural</h3>
+    <p>On real data, Presidio+spaCy missed: <b>ALL-CAPS names</b> ("CYRUS FAN"), <b>company names</b> (no ORGANIZATION operator in use), and <b>8-digit local phone numbers</b> ("2883 8760"). These are structural failures of trained-on-articles models, not tuning bugs.</p>
+    <p class="why"><b>Why it matters:</b> the robust fix for tabular data is <b>column-header-driven fallback</b> (<code>*name*</code> → treat whole cell as a name, <code>*tel*</code> → phone), routed through the same mapping. NLP becomes the fallback, not the primary — inverting the original design.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>5 · Detectors also misfire — validate the entity, not just detect it</h3>
+    <p>Presidio classified <code>"Card 4111111111111111"</code> as a <b>PERSON</b>, so the card number was replaced with a person name and its mapping key diverged from the same card elsewhere. Guard: spans typed PERSON/LOCATION but containing long digit runs get re-processed digit-run-wise, with <b>Luhn validation</b> deciding card vs plain ID.</p>
+    <p class="why"><b>Why it matters:</b> in anonymization pipelines, a detector error is worse than a miss — it can silently <i>corrupt consistency</i> while appearing to work.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>6 · Test fixtures are a data-leak vector — audit before you push</h3>
+    <p>The pre-push cleanliness audit found <b>real customer names and phone numbers embedded in test fixtures</b> — copied from <code>master.xlsx</code> for realism and then nearly pushed to GitHub. All fixtures were scrubbed to synthetic data, and <code>.gitignore</code> now hard-blocks <code>mapping.json</code>, <code>*-anonymized.xlsx</code>, and <code>master*.xlsx</code>.</p>
+    <p class="why"><b>Why it matters:</b> de-identification work has a habit of re-importing the very data it protects. Defense-in-depth (scan tree <i>and</i> git history, gitignore the outputs, keep sidecars outside the repo) beats one-time diligence.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>7 · Environment reality checks come before code</h3>
+    <p>Python 3.14 had no spaCy build → venv pinned to 3.11; <code>en_core_web_lg</code> is absent from PyPI (upstream packaging quirk) → installed via <code>spacy download</code>. A 10-second sample benchmark (2 ms/cell) de-risked the full 11,730-cell run before committing to it.</p>
+    <p class="why"><b>Why it matters:</b> measure the per-unit cost, extrapolate, then run — cheap insurance against a 40-minute surprise.</p>
+  </div>
+
+  <h2>Live-run audit (master.xlsx)</h2>
+  <table>
+    <tr><th>Check</th><th>Method</th><th>Result</th></tr>
+    <tr><td>Run-to-run determinism</td><td>two runs, cell-by-cell diff incl. number formats</td><td class="ok">identical</td></tr>
+    <tr><td>Forced-column coverage</td><td>non-blank/NA cells changed per PII column</td><td class="ok">509/509 × 5 columns</td></tr>
+    <tr><td>Consistency</td><td>group originals, count distinct fakes</td><td class="ok">0 violations (1,627 mappings)</td></tr>
+    <tr><td>Fake collisions</td><td>two originals → one fake per entity type</td><td class="ok">none</td></tr>
+    <tr><td>Type/format survival</td><td>re-open output: cell types + number_format</td><td class="ok">dates, $, digits intact</td></tr>
+  </table>
+
+  <div class="warnbox">
+    <b>Standing caveat:</b> <code>mapping.json</code> is a reversible key — treat it as a secret and never distribute it alongside anonymized outputs.
+  </div>
+
+  <div class="foot">
+    Artifacts: <code>timyklam/Excel-Anonymizer</code> (main = patched) · <code>master-anonymized.xlsx</code> · <code>mapping.json</code> · 21-test pytest suite
+  </div>
+
+</div>
+</body>
+</html>
