@@ -50,7 +50,7 @@
   <div class="sub">Patching Welding-Torch/Excel-Anonymizer for consistent, reusable fake data &nbsp;·&nbsp; shipped to <code>timyklam/Excel-Anonymizer</code> (private)</div>
 
   <div class="grid">
-    <div class="stat"><div class="v">21/21</div><div class="k">tests passing</div></div>
+    <div class="stat"><div class="v">37/37</div><div class="k">tests passing (v2 suite)</div></div>
     <div class="stat"><div class="v">509/509</div><div class="k">PII cells anonymized per forced column</div></div>
     <div class="stat"><div class="v">0</div><div class="k">consistency violations · leaks · collisions</div></div>
     <div class="stat"><div class="v">~11s</div><div class="k">11,730-cell live run</div></div>
@@ -112,6 +112,38 @@
     <p class="why"><b>Why it matters:</b> measure the per-unit cost, extrapolate, then run — cheap insurance against a 40-minute surprise.</p>
   </div>
 
+  <h2>Chapter 2 — the improvement brief (v2)</h2>
+
+  <div class="card learn">
+    <h3>8 · An external AI brief is a code review in disguise — triage it against the code, not the prose</h3>
+    <p>A second AI produced a 300-line improvement brief. ~70% described features already implemented (it had evidently read the upstream repo, not our patch). The valuable 30%: a real latent bug (collision retry gives up after 10 tries then accepts duplicates), a sharp critique of global <code>Faker.seed()</code> being traversal-order-dependent, phone <code>+CC</code>/<code>00CC</code> prefix equivalence, <code>.xlsm</code>/<code>keep_vba</code>, and token mode.</p>
+    <p class="why"><b>Why it matters:</b> adopt the brief's <i>defects list</i>, negotiate its <i>design opinions</i> (ephemeral-by-default contradicted the user's explicit cross-file requirement; encrypted store was deferred as YAGNI).</p>
+  </div>
+
+  <div class="card learn">
+    <h3>9 · Token mode: <code>PERSON_000001</code> is a better default than realistic fake names</h3>
+    <p>Counter-based tokens are collision-proof, order-independent by construction, obviously fictional (no risk of inventing a real person), and trivially auditable. Emails render as <code>person000001@example.test</code> (reserved TLD); phones/cards keep digit shape; custom entities support format-preserving tokens (<code>HK-2026-00142 → HK-8803-15604</code>).</p>
+    <p class="why"><b>Why it matters:</b> Faker can accidentally generate a real person's data; tokens never do.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>10 · Order-independent determinism needs per-key seeding, not a global seed</h3>
+    <p><code>Faker.seed(n)</code> is sequence-dependent: reordering rows/sheets changes every subsequently minted fake. Replacement: seed per key via <code>HMAC(secret, "TYPE|canonical")</code>. Bonus trap discovered the hard way: constructing a fresh <code>Faker()</code> per cell costs ~100-300 ms — the test suite hung for 15 minutes. Reseed one shared instance.</p>
+    <p class="why"><b>Why it matters:</b> same logical content must map identically regardless of layout; a global seed silently violates this.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>11 · Span merging: rules beat NLP, longest wins, never re-scan replaced text</h3>
+    <p>Custom regex entities (matter IDs) and Presidio spans must be resolved into one overlap-free span list (custom wins, then longest), replaced right-to-left against the <i>original</i> string. Re-running NLP on already-tokenized text mangles inserted tokens into new entities — e.g. a token inside an email address.</p>
+    <p class="why"><b>Why it matters:</b> free-text cells routinely mix domains: "See HK-2026-00142 regarding Peter Pan" needs both detectors on one consistent pass.</p>
+  </div>
+
+  <div class="card learn">
+    <h3>12 · Small-tool classics that still bite</h3>
+    <p><code>filename.rstrip(".xlsx")</code> strips the character <i>set</i> <code>{.,x,l,s}</code> — "ns.xlsx" became "n" and a test phantom-failed for an hour (use <code>Path.stem</code>). Greedy header heuristics: "Customer ID" matched the "customer" org pattern until id-ish headers got an exclusion check. Shape-preserving digit generators must reject fake == original.</p>
+    <p class="why"><b>Why it matters:</b> every one of these was caught by a test, not by inspection — the suite pays for itself constantly.</p>
+  </div>
+
   <h2>Live-run audit (master.xlsx)</h2>
   <table>
     <tr><th>Check</th><th>Method</th><th>Result</th></tr>
@@ -127,7 +159,7 @@
   </div>
 
   <div class="foot">
-    Artifacts: <code>timyklam/Excel-Anonymizer</code> (main = patched) · <code>master-anonymized.xlsx</code> · <code>mapping.json</code> · 21-test pytest suite
+    Artifacts: <code>timyklam/Excel-Anonymizer</code> (main = v2, commit 9c15f06) · <code>timyklam/data-cleansing-skill</code> · <code>master-anonymized.xlsx</code> · <code>mapping-v2.json</code> · 37-test pytest suite
   </div>
 
 </div>
